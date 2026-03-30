@@ -15,10 +15,12 @@ group_column = "group_id"
 source_row_id_column = "source_row_id"
 is_augmented_column = "is_augmented"
 augmentation_round_column = "augmentation_round"
+randomization_mode_column = "randomization_mode"
 
 augment_copies = 2
 noise_std = 0.01
 random_seed = 42
+randomization_mode = "group_based"
 
 
 def get_input_path(filename: str) -> Path:
@@ -46,10 +48,24 @@ def ensure_source_row_id(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def prepare_original_rows(df: pd.DataFrame) -> pd.DataFrame:
+def ensure_group_id(df: pd.DataFrame, mode: str) -> pd.DataFrame:
+    df = df.copy()
+
+    if mode == "group_based":
+        if group_column not in df.columns:
+            df[group_column] = np.arange(len(df))
+    elif mode == "normal":
+        if group_column in df.columns:
+            df = df.drop(columns=[group_column])
+
+    return df
+
+
+def prepare_original_rows(df: pd.DataFrame, mode: str) -> pd.DataFrame:
     df = df.copy()
     df[is_augmented_column] = 0
     df[augmentation_round_column] = 0
+    df[randomization_mode_column] = mode
     return df
 
 
@@ -64,6 +80,9 @@ def get_numeric_feature_columns(df: pd.DataFrame) -> list[str]:
     if group_column in df.columns:
         excluded_columns.add(group_column)
 
+    if randomization_mode_column in df.columns:
+        excluded_columns.add(randomization_mode_column)
+
     numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
     return [column for column in numeric_columns if column not in excluded_columns]
 
@@ -73,6 +92,7 @@ def augment_row(
     numeric_columns: list[str],
     rng: np.random.Generator,
     round_number: int,
+    mode: str,
 ) -> pd.Series:
     new_row = row.copy()
 
@@ -84,10 +104,11 @@ def augment_row(
 
     new_row[is_augmented_column] = 1
     new_row[augmentation_round_column] = round_number
+    new_row[randomization_mode_column] = mode
     return new_row
 
 
-def generate_augmented_data(df: pd.DataFrame, copies: int) -> pd.DataFrame:
+def generate_augmented_data(df: pd.DataFrame, copies: int, mode: str) -> pd.DataFrame:
     numeric_columns = get_numeric_feature_columns(df)
 
     if not numeric_columns:
@@ -104,6 +125,7 @@ def generate_augmented_data(df: pd.DataFrame, copies: int) -> pd.DataFrame:
                     numeric_columns=numeric_columns,
                     rng=rng,
                     round_number=round_number,
+                    mode=mode,
                 )
             )
 
@@ -123,12 +145,17 @@ def augment_parquet_file(
     input_filename: str = input_file,
     output_filename: str = output_file,
     copies: int = augment_copies,
+    mode: str = randomization_mode,
 ) -> pd.DataFrame:
+    if mode not in {"normal", "group_based"}:
+        raise ValueError("randomization mode must be 'normal' or 'group_based'")
+
     df = load_parquet_file(input_filename)
     df = ensure_source_row_id(df)
-    df = prepare_original_rows(df)
+    df = ensure_group_id(df, mode)
+    df = prepare_original_rows(df, mode)
 
-    augmented_df = generate_augmented_data(df, copies)
+    augmented_df = generate_augmented_data(df, copies, mode)
     final_df = pd.concat([df, augmented_df], ignore_index=True)
 
     save_parquet_file(final_df, output_filename)
@@ -138,6 +165,7 @@ def augment_parquet_file(
 def main() -> None:
     print("starting parquet augmentation software")
     print(f"software directory: {script_dir}")
+    print(f"randomization mode: {randomization_mode}")
 
     final_df = augment_parquet_file()
 

@@ -44,7 +44,7 @@ def main() -> None:
     print(f"saved: {output_file}")
     print(f"rows: {len(df)}")
     print(f"columns: {len(df.columns)}")
-    print("real parquet input created successfully")
+    print("parquet input created successfully")
 
 
 if __name__ == "__main__":
