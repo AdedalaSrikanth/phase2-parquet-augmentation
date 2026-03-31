@@ -2,9 +2,9 @@
 
 ## overview
 
-this project builds a parquet to parquet data augmentation software for tabular datasets.
+This project builds a parquet to parquet data augmentation software for tabular datasets.
 
-the goal of this phase is to implement the core logic for generating augmented samples while keeping track of the original data.
+The goal of this phase is to implement the core logic for generating augmented samples while keeping track of the original data.
 
 ---
 
@@ -29,9 +29,9 @@ the goal of this phase is to implement the core logic for generating augmented s
 
 ## what the software does
 
-the program reads a parquet file from the same folder and creates new synthetic rows by adding small noise to numeric columns.
+The program reads a parquet file from the same folder and creates new synthetic rows by adding small noise to numeric columns.
 
-it also keeps track of where each augmented row came from.
+It also keeps track of where each augmented row came from.
 
 ---
 
@@ -48,7 +48,7 @@ it also keeps track of where each augmented row came from.
 
 ## randomization modes
 
-the software supports two modes:
+The software supports two modes:
 
 normal  
 - treats all rows independently  
@@ -62,7 +62,7 @@ group_based
 
 ## current phase
 
-this phase focuses on:
+This phase focuses on:
 
 - building the augmentation software  
 - supporting parquet input and output  
@@ -73,7 +73,7 @@ this phase focuses on:
 
 ## not implemented yet
 
-the following will be done in phase 3:
+The following will be done in phase 3:
 
 - comparing model performance with and without augmentation  
 - comparing normal vs group-based randomization  
