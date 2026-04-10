@@ -1,0 +1,4 @@
+dataset,rows,accuracy,f1_score
+original,10000,0.966,0.0
+normal_augmented,30000,0.9661666666666666,0.0
+group_based_augmented,30000,0.9695,0.0
