@@ -1,2 +1,2 @@
 dataset,rows,accuracy,f1_score
-minority_balanced,322,0.765625,0.7457627118644068
+minority_balanced,85234,0.764593578247035,0.7725926339909461

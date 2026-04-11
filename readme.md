@@ -1,76 +1,75 @@
-phase 3 parquet augmentation project
+parquet data augmentation software (phase 3)
 
-this project builds parquet to parquet data augmentation software for tabular datasets. the software tracks the original source row for every augmented sample and supports both normal and group based randomization.
+overview
+this project builds a parquet to parquet data augmentation software. it takes a dataset, converts it into parquet format, performs data augmentation on the minority class, and tracks the source of each augmented sample. the goal is to handle imbalanced data while avoiding data leakage during model evaluation.
 
-main features
+dataset
+this project uses the stroke dataset. the original csv file is converted into parquet format and used for all processing.
 
-- reads input parquet file from same directory
-- saves output parquet file in same directory
-- tracks source_row_id for each augmented row
-- supports normal randomization
-- supports group based randomization
-- marks is_augmented, augmentation_round and randomization_mode
-- supports minority only augmentation to balance dataset
+files in this project
+build_stroke_input.py
+converts stroke.csv into input.parquet
 
-files
+parquet_augment.py
+main augmentation logic for generating new samples
 
-- build_input.py builds parquet input from csv
-- build_gallstone_input.py builds parquet input using gallstone dataset
-- phase2_parquet_augment.py performs main augmentation
-- phase3_analysis.py analyzes class distribution and augmentation lineage
-- phase3_model_comparison.py compares original, normal and group based datasets
-- phase3_minority_augment.py augments only minority class
-- phase3_minority_model_test.py evaluates minority balanced dataset
+phase3_model_comparison.py
+compares model performance using original data, normal augmentation, and group-based augmentation
 
-input files
+phase3_minority_augment.py
+generates augmented samples only for the minority class to balance the dataset
 
-- input.parquet
-- gallstone.csv
-- ai4i2020.csv
+phase3_minority_model_test.py
+tests model performance on the balanced dataset
 
-output files
+stroke.csv
+original dataset
 
-- augmented_minority_only.parquet
-- model_comparison_results.csv
-- minority_model_results.csv
+input.parquet
+processed input dataset
 
-how to run
+augmented_minority_only.parquet
+final augmented dataset with balanced classes
 
-activate virtual environment
+model_comparison_results.csv
+results comparing different augmentation methods
 
-run input build
-python build_gallstone_input.py
+minority_model_results.csv
+results after balancing the dataset
 
-run augmentation
-python phase2_parquet_augment.py
+how the software works
 
-run analysis
-python phase3_analysis.py
+step 1
+run build_stroke_input.py to create input.parquet from stroke.csv
 
-run model comparison
-python phase3_model_comparison.py
+step 2
+run phase3_minority_augment.py to generate augmented samples for the minority class
 
-run minority augmentation
-python phase3_minority_augment.py
+step 3
+run phase3_model_comparison.py to compare model performance across different methods
 
-run model test
-python phase3_minority_model_test.py
+step 4
+run phase3_minority_model_test.py to evaluate the balanced dataset
 
-final results
+augmentation method
+this project uses simple gaussian noise to generate new samples. only numeric columns are modified, and the changes are kept small to preserve the original data distribution.
 
-original, normal augmented and group based datasets showed high accuracy around 0.96 but f1 score was 0. this means model was predicting only majority class.
+source tracking
+each augmented sample stores the source_row_id of the original row it was created from. in group-based mode, all augmented samples from the same source share the same group_id. this ensures correct data splitting during training and testing.
 
-after applying minority only augmentation, dataset became balanced and model performance changed to
+normal vs group-based randomization
 
-accuracy around 0.59  
-f1 score around 0.59  
+normal randomization
+augmented samples are treated independently, which can lead to data leakage and overestimated performance
 
-this shows that accuracy alone is misleading for imbalanced datasets and minority balancing improves meaningful performance.
+group-based randomization
+augmented samples are grouped with their original data, preventing leakage and giving more realistic model performance
 
-note on smote
+results
+the original dataset is highly imbalanced, causing poor model performance on the minority class. after applying minority-only augmentation, the dataset becomes balanced and the model performance improves significantly.
 
-smote type methods were considered but they require two samples for generating new data which makes source tracking difficult. this project uses single sample augmentation for simplicity.
+limitations
+this project does not use smote because it requires combining two samples, which makes source tracking difficult. instead, a single-sample augmentation approach is used.
 
-project status
-
-phase 3 completed
+conclusion
+this software demonstrates how data augmentation can be applied in a controlled way to improve model performance while avoiding common issues like data leakage. the use of source tracking and group-based randomization makes the evaluation more reliable.

@@ -38,6 +38,16 @@ def get_features(df):
     return [col for col in numeric if col not in excluded]
 
 
+def fill_missing_values(df):
+    for col in df.columns:
+        if col != target_column:
+            if df[col].dtype in ["float64", "int64"]:
+                df[col] = df[col].fillna(df[col].mean())
+            else:
+                df[col] = df[col].fillna(0)
+    return df
+
+
 def evaluate(df):
     features = get_features(df)
 
@@ -70,6 +80,10 @@ def main():
     print("testing minority balanced dataset")
 
     df = load_data(input_file)
+
+    
+    df = fill_missing_values(df)
+
     result = evaluate(df)
 
     result_df = pd.DataFrame([result])

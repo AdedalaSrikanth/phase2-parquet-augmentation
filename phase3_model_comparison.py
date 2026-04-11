@@ -3,8 +3,10 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
+from sklearn.exceptions import ConvergenceWarning
+import warnings
 
-from phase2_parquet_augment import augment_parquet_file
+from parquet_augment import augment_parquet_file
 
 script_dir = Path(__file__).resolve().parent
 
@@ -31,11 +33,10 @@ def get_file_path(filename: str) -> Path:
 
 
 def load_parquet_file(filename: str) -> pd.DataFrame:
-    file_path = get_file_path(filename)
-    return pd.read_parquet(file_path)
+    return pd.read_parquet(get_file_path(filename))
 
 
-def get_feature_columns(df: pd.DataFrame) -> list[str]:
+def prepare_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     excluded_columns = {
         target_column,
         group_column,
@@ -45,15 +46,32 @@ def get_feature_columns(df: pd.DataFrame) -> list[str]:
         randomization_mode_column,
     }
 
-    numeric_columns = df.select_dtypes(include="number").columns.tolist()
-    return [column for column in numeric_columns if column not in excluded_columns]
+    x = df.drop(columns=list(excluded_columns), errors="ignore").copy()
+    y = df[target_column].copy()
+
+    numeric_columns = x.select_dtypes(include=["number"]).columns.tolist()
+    text_columns = x.select_dtypes(exclude=["number"]).columns.tolist()
+
+    for column in numeric_columns:
+        x[column] = x[column].fillna(x[column].mean())
+
+    for column in text_columns:
+        x[column] = x[column].fillna("missing")
+
+    x = pd.get_dummies(x, columns=text_columns, drop_first=False)
+
+    return x, y
+
+
+def align_train_test_columns(
+    x_train: pd.DataFrame, x_test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    x_train, x_test = x_train.align(x_test, join="left", axis=1, fill_value=0)
+    return x_train, x_test
 
 
 def evaluate_original(df: pd.DataFrame) -> dict:
-    feature_columns = get_feature_columns(df)
-
-    x = df[feature_columns]
-    y = df[target_column]
+    x, y = prepare_features(df)
 
     x_train, x_test, y_train, y_test = train_test_split(
         x,
@@ -63,7 +81,9 @@ def evaluate_original(df: pd.DataFrame) -> dict:
         stratify=y,
     )
 
-    model = LogisticRegression(max_iter=1000)
+    x_train, x_test = align_train_test_columns(x_train, x_test)
+
+    model = LogisticRegression(max_iter=3000)
     model.fit(x_train, y_train)
 
     predictions = model.predict(x_test)
@@ -72,15 +92,12 @@ def evaluate_original(df: pd.DataFrame) -> dict:
         "dataset": "original",
         "rows": len(df),
         "accuracy": accuracy_score(y_test, predictions),
-        "f1_score": f1_score(y_test, predictions),
+        "f1_score": f1_score(y_test, predictions, zero_division=0),
     }
 
 
 def evaluate_normal(df: pd.DataFrame) -> dict:
-    feature_columns = get_feature_columns(df)
-
-    x = df[feature_columns]
-    y = df[target_column]
+    x, y = prepare_features(df)
 
     x_train, x_test, y_train, y_test = train_test_split(
         x,
@@ -90,7 +107,9 @@ def evaluate_normal(df: pd.DataFrame) -> dict:
         stratify=y,
     )
 
-    model = LogisticRegression(max_iter=1000)
+    x_train, x_test = align_train_test_columns(x_train, x_test)
+
+    model = LogisticRegression(max_iter=3000)
     model.fit(x_train, y_train)
 
     predictions = model.predict(x_test)
@@ -99,26 +118,25 @@ def evaluate_normal(df: pd.DataFrame) -> dict:
         "dataset": "normal_augmented",
         "rows": len(df),
         "accuracy": accuracy_score(y_test, predictions),
-        "f1_score": f1_score(y_test, predictions),
+        "f1_score": f1_score(y_test, predictions, zero_division=0),
     }
 
 
 def evaluate_group_based(df: pd.DataFrame) -> dict:
-    feature_columns = get_feature_columns(df)
-
-    x = df[feature_columns]
-    y = df[target_column]
+    x, y = prepare_features(df)
     groups = df[group_column]
 
     splitter = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
     train_index, test_index = next(splitter.split(x, y, groups))
 
-    x_train = x.iloc[train_index]
-    x_test = x.iloc[test_index]
+    x_train = x.iloc[train_index].copy()
+    x_test = x.iloc[test_index].copy()
     y_train = y.iloc[train_index]
     y_test = y.iloc[test_index]
 
-    model = LogisticRegression(max_iter=1000)
+    x_train, x_test = align_train_test_columns(x_train, x_test)
+
+    model = LogisticRegression(max_iter=3000)
     model.fit(x_train, y_train)
 
     predictions = model.predict(x_test)
@@ -127,7 +145,7 @@ def evaluate_group_based(df: pd.DataFrame) -> dict:
         "dataset": "group_based_augmented",
         "rows": len(df),
         "accuracy": accuracy_score(y_test, predictions),
-        "f1_score": f1_score(y_test, predictions),
+        "f1_score": f1_score(y_test, predictions, zero_division=0),
     }
 
 
@@ -139,6 +157,7 @@ def save_results(results: list[dict], filename: str) -> None:
 
 
 def main() -> None:
+    warnings.filterwarnings("ignore", category=ConvergenceWarning)
     print("starting model comparison")
 
     augment_parquet_file(
@@ -159,10 +178,11 @@ def main() -> None:
     normal_df = load_parquet_file(normal_file)
     group_df = load_parquet_file(group_file)
 
-    results = []
-    results.append(evaluate_original(original_df))
-    results.append(evaluate_normal(normal_df))
-    results.append(evaluate_group_based(group_df))
+    results = [
+        evaluate_original(original_df),
+        evaluate_normal(normal_df),
+        evaluate_group_based(group_df),
+    ]
 
     save_results(results, results_file)
 
